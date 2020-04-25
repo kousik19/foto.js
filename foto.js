@@ -1,4 +1,4 @@
-var Foto =function() {
+class Foto {
 
     constructor() {
 
