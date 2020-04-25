@@ -1,4 +1,4 @@
-class Fotor {
+class Foto {
 
     constructor() {
 
