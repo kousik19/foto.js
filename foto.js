@@ -21,6 +21,8 @@ class Foto {
         this.imageHeight = 0;
         this.convertedToGrayScale = false;
 
+        this.previewImageElement = null;
+
         this.redPixelMatrix = [];
         this.greenPixelMatrix = [];
         this.bluePixelMatrix = [];
@@ -37,6 +39,33 @@ class Foto {
         this.endX = "";
         this.endY = ""; 
         this.excludeArea = false;
+
+        this.relativeStartX = "";
+        this.relativeStartY = "";
+        this.relativeEndX = "";
+        this.relativeEndY = "";
+
+        this.pickedR = null;
+        this.pickedG = null;
+        this.pickedB = null;
+
+        this.selectRect = document.createElement("div");
+        document.body.appendChild(this.selectRect);
+
+        this.oldSelectedColorForColorize = null;
+        this.ctrlPressed = false;
+
+        //attach few events
+        var root = this;
+        document.addEventListener("keydown", function(event){
+            if(event.keyCode == 17) {
+                root.ctrlPressed = true;
+            }
+        })
+
+        document.addEventListener("keyup", function(event){
+            root.ctrlPressed = true;
+        })
     }
 
     loadImage() {
@@ -63,47 +92,53 @@ class Foto {
 
                 //resetting
                 root.imageData = [];
-                root.redPixelMatrix = [];
-                root.greenPixelMatrix = [];
-                root.bluePixelMatrix = [];
-                root.alphaPixelMatrix = [];
                 root.operationOrgCtx.clearRect(0,0,root.operationOrgCanvas.width, root.operationOrgCanvas.height);
                 root.operationEditedCtx.clearRect(0,0,root.operationEditedCanvas.width, root.operationEditedCanvas.height);
                 
                 root.operationOrgCtx.drawImage(root.image, 0, 0);
+                root.operationEditedCtx.drawImage(root.image, 0, 0);
 
                 //for viewing purpose
-                root.previewImage(root.operationOrgCanvas);
+                root.previewImage(root.operationOrgCanvas, 0);
+                //root.previewImage(); //put data on edited canvas also
 
                 root.imageData = root.operationOrgCtx.getImageData(0, 0, root.operationOrgCanvas.width, root.operationOrgCanvas.height);
 
                 //generate pixel matrix
-                var r = [], g = [], b = [], a = [];
-                for(var i=0; i < root.imageData.data.length; i = i + 4) {
-                    
-                    if((i/4) % root.imageWidth == 0) {
-                        if(i != 0) {
-                            root.redPixelMatrix.push(r);
-                            root.greenPixelMatrix.push(g);
-                            root.bluePixelMatrix.push(b);
-                            root.alphaPixelMatrix.push(a);
-                        }
-                        r = [];
-                        g = [];
-                        b = [];
-                        a = [];
-                    }
-                    r.push(root.imageData.data[i]);
-                    g.push(root.imageData.data[i + 1]);
-                    b.push(root.imageData.data[i + 2]);
-                    a.push(root.imageData.data[i + 3]);
-                }
+                root.generatePixelPatrix();
 
                 console.log("Pixel Data Loaded");
             }
             root.image.src = e.target.result
         }
         reader.readAsDataURL(input.files[0]);
+    }
+
+    generatePixelPatrix() {
+        var r = [], g = [], b = [], a = [];
+        this.redPixelMatrix = [];
+        this.greenPixelMatrix = [];
+        this.bluePixelMatrix = [];
+        this.alphaPixelMatrix = [];
+        for(var i=0; i < this.imageData.data.length; i = i + 4) {
+            
+            if((i/4) % this.imageWidth == 0) {
+                if(i != 0) {
+                    this.redPixelMatrix.push(r);
+                    this.greenPixelMatrix.push(g);
+                    this.bluePixelMatrix.push(b);
+                    this.alphaPixelMatrix.push(a);
+                }
+                r = [];
+                g = [];
+                b = [];
+                a = [];
+            }
+            r.push(this.imageData.data[i]);
+            g.push(this.imageData.data[i + 1]);
+            b.push(this.imageData.data[i + 2]);
+            a.push(this.imageData.data[i + 3]);
+        }
     }
 
     grayscale() {
@@ -165,13 +200,12 @@ class Foto {
      * Transparent
      */
     makeTransparent() {
-        console.log(this.pickedR);
         var modifiedImageData = this.imageData;
         for(var i=0; i < modifiedImageData.data.length; i = i + 4) {
 
-            if(Math.abs(modifiedImageData.data[i] - this.pickedR) < 20
-                && Math.abs(modifiedImageData.data[i + 1] - this.pickedG) < 20
-                && Math.abs(modifiedImageData.data[i + 2] - this.pickedB) < 20)
+            if(Math.abs(modifiedImageData.data[i] - this.pickedR) < 30
+                && Math.abs(modifiedImageData.data[i + 1] - this.pickedG) < 30
+                && Math.abs(modifiedImageData.data[i + 2] - this.pickedB) < 30)
             modifiedImageData.data[i + 3] = 0;
         }
         this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
@@ -192,14 +226,6 @@ class Foto {
             if(row == 0 || col == 0 || 
                 row == this.imageHeight - 1 || col == this.imageWidth - 1)
                 continue;
-                
-            //console.log(row + " " + col);
-            /*if(this.excludeArea) {
-                if((row > this.startY && row < this.endY) && (col > this.startX && col < this.endX)) {
-                    count++;
-                    continue;
-                }
-            }*/
 
             var finalR = 0, finalG = 0, finalB = 0, finalA = 0;
             
@@ -229,7 +255,7 @@ class Foto {
 
 
         }
-        console.log("Its here");
+        //console.log(this.imageData);
         this.operationEditedCtx.putImageData(this.imageData, 0, 0);
         this.previewImage();
     }
@@ -238,10 +264,15 @@ class Foto {
      * Make Blur
      */
     applyBlurFilter() {
-        this.applyFilter([
+        /*this.applyFilter([
             [.0625, .125, .0625],
             [.125, .25, .125],
             [.0625, .125, .0625]
+        ])*/
+        this.applyFilter([
+            [1/9, 1/9, 1/9],
+            [1/9, 1/9, 1/9],
+            [1/9, 1/9, 1/9]
         ])
     }
 
@@ -267,12 +298,73 @@ class Foto {
         ])
     }
 
+    /**
+     * Unused for now
+     */
+    applyVintageFilter() {
+        this.colorFilter("#0000ff");
+        this.colorFilter("#0000ff");
+        this.colorFilter("#ec8900");
+    }
+
     applyCustom() {
         this.applyFilter([
             [-1, -1, -1],
             [2, 2, 2],
             [-1, -1, -1]
         ])
+    }
+
+    flipVertically() {
+        this.operationEditedCtx.translate(this.imageWidth, 0);
+        this.operationEditedCtx.scale(-1, 1);
+        this.operationEditedCtx.drawImage(this.image, 0, 0);
+
+        this.operationOrgCtx.translate(this.imageWidth, 0);
+        this.operationOrgCtx.scale(-1, 1);
+        this.operationOrgCtx.drawImage(this.image, 0, 0);
+
+        this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
+        this.generatePixelPatrix();
+
+        this.previewImage();
+        console.log("Here it is");
+    }
+
+    flipHorizontally() {
+        this.operationEditedCtx.translate(0, this.imageHeight);
+        this.operationEditedCtx.scale(1, -1);
+        this.operationEditedCtx.drawImage(this.image, 0, 0);
+
+        this.operationOrgCtx.translate(0, this.imageHeight);
+        this.operationOrgCtx.scale(1, -1);
+        this.operationOrgCtx.drawImage(this.image, 0, 0);
+
+        this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
+        this.generatePixelPatrix();
+
+        this.previewImage();
+    }
+
+    rotate(degrees){
+        this.operationEditedCtx.clearRect(0,0,this.operationEditedCanvas.width,this.operationEditedCanvas.height);
+        this.operationEditedCtx.save(); 
+        this.operationEditedCtx.translate(this.operationEditedCanvas.width/2,this.operationEditedCanvas.height/2);
+        this.operationEditedCtx.rotate(degrees * Math.PI/180);
+        this.operationEditedCtx.drawImage(this.image, -this.image.width/2, -this.image.width/2);
+        this.operationEditedCtx.restore();
+
+        this.operationOrgCtx.clearRect(0,0,this.operationOrgCanvas.width,this.operationOrgCanvas.height);
+        this.operationOrgCtx.save(); 
+        this.operationOrgCtx.translate(this.operationOrgCanvas.width/2,this.operationOrgCanvas.height/2);
+        this.operationOrgCtx.rotate(degrees * Math.PI/180);
+        this.operationOrgCtx.drawImage(this.image, -this.image.width/2, -this.image.width/2);
+        this.operationOrgCtx.save(); 
+
+        this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
+        this.generatePixelPatrix();
+
+        this.previewImage();
     }
 
     /**
@@ -286,15 +378,169 @@ class Foto {
         link.click();
     }
 
-     previewImage(canvas) {
+     previewImage(canvas, firstLoad) {
 
         var root = this;
-        var image = document.getElementById("foto-image");
+        this.previewImageElement = document.getElementById("foto-image");
+        this.previewImageElement.setAttribute('draggable', false);
+        
+        var root = this;
+        if(firstLoad != undefined && firstLoad == 0) {
+            this.previewImageElement.addEventListener("mouseover", function(event){
+                this.style.cursor = "crosshair"
+            })
+
+            this.previewImageElement.addEventListener("click", function(event){
+                if(root.ctrlPressed) {
+                    root.pickColorPixel(event.layerX, event.layerY);
+                }
+                root.selectStart = false;
+            })
+
+            this.previewImageElement.addEventListener("mousedown", function(event){
+                root.selectStart = true;
+                root.startX = event.clientX;
+                root.startY = event.clientY;
+
+                root.relativeStartX = event.layerX;
+                root.relativeStartY = event.layerY;
+            })
+
+            this.previewImageElement.addEventListener("mousemove", function(event){
+                root.endX = event.clientX;
+                root.endY = event.clientY;
+                
+                if(root.selectStart) {
+
+                    root.selectRect.style.position = "fixed";
+                    root.selectRect.style.display = "initial";
+                    root.selectRect.style.border = "2px dashed black";
+                    root.selectRect.style.top = root.startY + "px";
+                    root.selectRect.style.left = root.startX + "px";
+
+                    root.selectRect.style.height = (root.endY - root.startY) + "px";
+                    root.selectRect.style.width = (root.endX - root.startX) + "px";
+                }
+            })
+
+            this.previewImageElement.addEventListener("mouseup", function(event){
+
+                root.relativeEndX = event.layerX;
+                root.relativeEndY = event.layerY;
+
+                root.selectStart = false;
+                root.selectRect.style.height = "0px";
+                root.selectRect.style.width = "0px";
+                root.selectRect.style.display = "none";
+            })
+
+            this.selectRect.addEventListener("mouseup", function(event){
+                root.selectStart = false;
+            })
+        }
 
         if(canvas == undefined)
-            image.src = root.operationEditedCanvas.toDataURL();
+            this.previewImageElement.src = root.operationEditedCanvas.toDataURL();
         else {
-            image.src = canvas.toDataURL();
+            this.previewImageElement.src = canvas.toDataURL();
         }
      }
+
+    pickColorPixel(x, y) {
+        var imgW = this.previewImageElement.width;
+        var imgH = this.previewImageElement.height;
+
+        var imgWFactor = this.imageWidth / imgW;
+        var imageHFactor = this.imageHeight / imgH;
+
+        var actualX = parseInt(this.relativeStartX * imgWFactor);
+        var actualY = parseInt(this.relativeStartY * imageHFactor);
+
+        var pixelData = this.operationOrgCtx.getImageData(actualX, actualY, 1, 1).data;
+        this.pickedR = pixelData[0];
+        this.pickedG = pixelData[1];
+        this.pickedB = pixelData[2];
+        this.pickedA = pixelData[3];
+
+        document.getElementById("color-preview").style.background = "rgb(" + this.pickedR + ", " + this.pickedG + ", " + this.pickedB + ")"
+    }
+
+    applyColorFilter(color) {
+        var r = parseInt(color.substr(1,2), 16) * .5;
+        var g = parseInt(color.substr(3,2), 16) * .5;
+        var b = parseInt(color.substr(5,2), 16) * .5;
+
+        var modifiedImageData = this.imageData;
+        for(var i=0; i < modifiedImageData.data.length; i = i + 4) {
+
+            if(modifiedImageData.data[i] <= r)modifiedImageData.data[i] = r;
+            if(modifiedImageData.data[i + 1] <= g)modifiedImageData.data[i+1] = g;
+            if(modifiedImageData.data[i + 2] <= b)modifiedImageData.data[i+2] = b;
+        }
+        this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
+        this.previewImage();
+    }
+
+    colorize(color) {
+        var r = parseInt(color.substr(1,2), 16) * .5;
+        var g = parseInt(color.substr(3,2), 16) * .5;
+        var b = parseInt(color.substr(5,2), 16) * .5;
+
+        if(this.oldSelectedColorForColorize != undefined) {
+            r = - parseInt(this.oldSelectedColorForColorize.substr(1,2), 16) + r;
+            g = - parseInt(this.oldSelectedColorForColorize.substr(3,2), 16) + g;
+            b = - parseInt(this.oldSelectedColorForColorize.substr(3,2), 16) + b;
+        }
+
+        this.oldSelectedColorForColorize = color;
+
+        var modifiedImageData = this.imageData;
+        for(var i=0; i < modifiedImageData.data.length; i = i + 4) {
+
+            modifiedImageData.data[i] += r;
+            modifiedImageData.data[i + 1] += g;
+            modifiedImageData.data[i + 2] += b;
+        }
+        this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
+        this.previewImage();
+    }
+
+    cropSelected() {
+        var imgW = this.previewImageElement.width;
+        var imgH = this.previewImageElement.height;
+
+        var imgWFactor = this.imageWidth / imgW;
+        var imageHFactor = this.imageHeight / imgH;
+
+        var actualStartX = this.relativeStartX * imgWFactor;
+        var actualStartY = this.relativeStartY * imageHFactor;
+
+        var croppedWidth = parseInt(parseInt(this.selectRect.style.width.replace(/\D/g,'')) * imgWFactor);
+        var croppedHeight = parseInt(parseInt(this.selectRect.style.height.replace(/\D/g,'')) * imageHFactor);
+
+        var editedCroppedImageData = this.operationEditedCtx.getImageData(actualStartX, actualStartY, croppedWidth, croppedHeight);
+        var orgCroppedImageData = this.operationOrgCtx.getImageData(actualStartX, actualStartY, croppedWidth, croppedHeight);
+        
+        this.operationEditedCtx.clearRect(0, 0, this.operationEditedCanvas.width, this.operationEditedCanvas.height);
+        this.operationOrgCtx.clearRect(0, 0, this.operationOrgCtx.width, this.operationOrgCtx.height);
+
+        this.operationEditedCanvas.width = croppedWidth;
+        this.operationEditedCanvas.height = croppedHeight;
+
+        this.operationOrgCanvas.width = croppedWidth;
+        this.operationOrgCanvas.height = croppedHeight;
+
+        this.operationEditedCtx.putImageData(editedCroppedImageData, 0, 0);
+        this.operationOrgCtx.putImageData(orgCroppedImageData, 0, 0);
+
+        this.imageWidth = croppedWidth;
+        this.imageHeight = croppedHeight;
+
+        this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
+        this.generatePixelPatrix();
+
+        this.selectRect.style.display = "none";
+        
+        this.previewImage()
+    }
 }
