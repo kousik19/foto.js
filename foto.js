@@ -105,7 +105,7 @@ class Foto {
                 root.imageData = root.operationOrgCtx.getImageData(0, 0, root.operationOrgCanvas.width, root.operationOrgCanvas.height);
 
                 //generate pixel matrix
-                root.generatePixelPatrix();
+                root.generatePixelMatrix();
 
                 console.log("Pixel Data Loaded");
             }
@@ -114,7 +114,7 @@ class Foto {
         reader.readAsDataURL(input.files[0]);
     }
 
-    generatePixelPatrix() {
+    generatePixelMatrix() {
         var r = [], g = [], b = [], a = [];
         this.redPixelMatrix = [];
         this.greenPixelMatrix = [];
@@ -155,6 +155,7 @@ class Foto {
         }
         //this.editedCtx.putImageData(modifiedImageData, 0, 0);
         this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
+        this.operationOrgCtx.putImageData(modifiedImageData, 0, 0);
         this.previewImage();
         this.convertedToGrayScale = !this.convertedToGrayScale;
     }
@@ -316,6 +317,8 @@ class Foto {
     }
 
     flipVertically() {
+
+        //this.recreateImageObject();
         this.operationEditedCtx.translate(this.imageWidth, 0);
         this.operationEditedCtx.scale(-1, 1);
         this.operationEditedCtx.drawImage(this.image, 0, 0);
@@ -325,13 +328,14 @@ class Foto {
         this.operationOrgCtx.drawImage(this.image, 0, 0);
 
         this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
-        this.generatePixelPatrix();
+        this.generatePixelMatrix();
 
         this.previewImage();
-        console.log("Here it is");
     }
 
     flipHorizontally() {
+
+        //this.recreateImageObject();
         this.operationEditedCtx.translate(0, this.imageHeight);
         this.operationEditedCtx.scale(1, -1);
         this.operationEditedCtx.drawImage(this.image, 0, 0);
@@ -341,7 +345,7 @@ class Foto {
         this.operationOrgCtx.drawImage(this.image, 0, 0);
 
         this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
-        this.generatePixelPatrix();
+        this.generatePixelMatrix();
 
         this.previewImage();
     }
@@ -349,20 +353,20 @@ class Foto {
     rotate(degrees){
         this.operationEditedCtx.clearRect(0,0,this.operationEditedCanvas.width,this.operationEditedCanvas.height);
         this.operationEditedCtx.save(); 
-        this.operationEditedCtx.translate(this.operationEditedCanvas.width/2,this.operationEditedCanvas.height/2);
+        this.operationEditedCtx.translate(this.imageWidth/2,this.imageHeight/2);
         this.operationEditedCtx.rotate(degrees * Math.PI/180);
         this.operationEditedCtx.drawImage(this.image, -this.image.width/2, -this.image.width/2);
         this.operationEditedCtx.restore();
 
         this.operationOrgCtx.clearRect(0,0,this.operationOrgCanvas.width,this.operationOrgCanvas.height);
         this.operationOrgCtx.save(); 
-        this.operationOrgCtx.translate(this.operationOrgCanvas.width/2,this.operationOrgCanvas.height/2);
+        this.operationOrgCtx.translate(this.imageWidth/2,this.imageHeight/2);
         this.operationOrgCtx.rotate(degrees * Math.PI/180);
         this.operationOrgCtx.drawImage(this.image, -this.image.width/2, -this.image.width/2);
-        this.operationOrgCtx.save(); 
+        this.operationOrgCtx.restore(); 
 
         this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
-        this.generatePixelPatrix();
+        this.generatePixelMatrix();
 
         this.previewImage();
     }
@@ -378,7 +382,7 @@ class Foto {
         link.click();
     }
 
-     previewImage(canvas, firstLoad) {
+     previewImage(canvas, firstLoad, recreateImageFlag) {
 
         var root = this;
         this.previewImageElement = document.getElementById("foto-image");
@@ -391,8 +395,11 @@ class Foto {
             })
 
             this.previewImageElement.addEventListener("click", function(event){
+                root.relativeStartX = event.offsetX;
+                root.relativeStartY = event.offsetY;
+
                 if(root.ctrlPressed) {
-                    root.pickColorPixel(event.layerX, event.layerY);
+                    root.pickColorPixel(root.relativeStartX, root.relativeStartY);
                 }
                 root.selectStart = false;
             })
@@ -402,8 +409,8 @@ class Foto {
                 root.startX = event.clientX;
                 root.startY = event.clientY;
 
-                root.relativeStartX = event.layerX;
-                root.relativeStartY = event.layerY;
+                root.relativeStartX = event.offsetX;
+                root.relativeStartY = event.offsetY;
             })
 
             this.previewImageElement.addEventListener("mousemove", function(event){
@@ -444,7 +451,14 @@ class Foto {
         else {
             this.previewImageElement.src = canvas.toDataURL();
         }
+
+        //this.recreateImageObject();
      }
+
+    recreateImageObject() {
+        this.image = new Image();
+        this.image.src = this.operationOrgCanvas.toDataURL();
+    }
 
     pickColorPixel(x, y) {
         var imgW = this.previewImageElement.width;
@@ -453,8 +467,8 @@ class Foto {
         var imgWFactor = this.imageWidth / imgW;
         var imageHFactor = this.imageHeight / imgH;
 
-        var actualX = parseInt(this.relativeStartX * imgWFactor);
-        var actualY = parseInt(this.relativeStartY * imageHFactor);
+        var actualX = parseInt(x * imgWFactor);
+        var actualY = parseInt(y * imageHFactor);
 
         var pixelData = this.operationOrgCtx.getImageData(actualX, actualY, 1, 1).data;
         this.pickedR = pixelData[0];
@@ -478,6 +492,7 @@ class Foto {
             if(modifiedImageData.data[i + 2] <= b)modifiedImageData.data[i+2] = b;
         }
         this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
+        this.operationOrgCtx.putImageData(modifiedImageData, 0, 0);
         this.previewImage();
     }
 
@@ -502,6 +517,7 @@ class Foto {
             modifiedImageData.data[i + 2] += b;
         }
         this.operationEditedCtx.putImageData(modifiedImageData, 0, 0);
+        this.operationOrgCtx.putImageData(modifiedImageData, 0, 0);
         this.previewImage();
     }
 
@@ -537,7 +553,7 @@ class Foto {
         this.imageHeight = croppedHeight;
 
         this.imageData = this.operationOrgCtx.getImageData(0, 0, this.operationOrgCanvas.width, this.operationOrgCanvas.height);
-        this.generatePixelPatrix();
+        this.generatePixelMatrix();
 
         this.selectRect.style.display = "none";
         
